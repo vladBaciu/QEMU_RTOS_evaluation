@@ -1,0 +1,108 @@
+/*
+ ChibiOS - Copyright (C) 2006..2018 Giovanni Di Sirio
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ */
+
+#include "ch.h"
+#include "hal.h"
+#include "rt_test_root.h"
+#include "oslib_test_root.h"
+
+uint32_t it1, it2, delta;      // start and stop flag
+typedef struct trg_t
+{
+   thread_t* threadp;
+
+} trg_t;
+
+static trg_t *trg2;
+/*
+ * This is a periodic thread that does absolutely nothing except flashing
+ * a LED.
+ */
+static THD_WORKING_AREA(waThread1, 128);
+static THD_FUNCTION(Thread1, arg) {
+	trg2 = arg;
+	(void) arg;
+	chRegSetThreadName("blinker");
+	while (true) {
+
+//		palSetPad(GPIOD, GPIOD_LED4); /* Orange.  */
+//		//SysTick->LOAD = 0x00FFFFFF;
+//		//it1 = SysTick->VAL;
+//		//chThdResume(&(trg2->threadp),(msg_t) 0);
+//		//it2 = SysTick->VAL;
+//	//	delta = 0x00FFFFFF & (it1 - it2);
+//	    chThdSleepMilliseconds(600);
+//	    palClearPad(GPIOD, GPIOD_LED4);
+//		palSetPad(GPIOD, GPIOD_LED5); /* Orange.  */
+	    palSetPad(GPIOD, GPIOD_LED3);       /* Orange.  */
+	    chThdResume(&(trg2->threadp),(msg_t) 0);
+	    palClearPad(GPIOD, GPIOD_LED3);     /* Orange.  */
+
+	}
+}
+
+static THD_WORKING_AREA(waThread2, 128);
+static THD_FUNCTION(Thread2, arg) {
+	(void) arg;
+	chRegSetThreadName("master");
+	while (true) {
+        chThdSleep(TIME_INFINITE);
+		//palSetPad(GPIOD, GPIOD_LED3); /* Orange.  */
+        chThdSleep(TIME_INFINITE);
+	}
+}
+
+/*
+ * Application entry point.
+ */
+int main(void) {
+
+	/*
+	 * System initializations.
+	 * - HAL initialization, this also initializes the configured device drivers
+	 *   and performs the board-specific initializations.
+	 * - Kernel initialization, the main() function becomes a thread and the
+	 *   RTOS is active.
+	 */
+	halInit();
+	chSysInit();
+	trg_t trg;
+	/*
+	 * Activates the serial driver 2 using the driver default configuration.
+	 * PA2(TX) and PA3(RX) are routed to USART2.
+	 */
+	sdStart(&SD2, NULL);
+	palSetPadMode(GPIOA, 2, PAL_MODE_ALTERNATE(7));
+	palSetPadMode(GPIOA, 3, PAL_MODE_ALTERNATE(7));
+
+	/*
+	 * Creates the example thread.
+	 */
+	trg.threadp = chThdCreateStatic(waThread2, sizeof(waThread2), HIGHPRIO, Thread2, (void *) &trg);
+	chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO, Thread1, (void *) &trg);
+
+	/*
+	 * Normal main() thread activity, in this demo it does nothing except
+	 * sleeping in a loop and check the button state.
+	 */
+	while (true) {
+		if (palReadPad(GPIOA, GPIOA_BUTTON)) {
+			test_execute((BaseSequentialStream*) &SD2, &rt_test_suite);
+			test_execute((BaseSequentialStream*) &SD2, &oslib_test_suite);
+		}
+		chThdSleepMilliseconds(500);
+	}
+}
